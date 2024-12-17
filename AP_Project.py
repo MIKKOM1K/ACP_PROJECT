@@ -3,7 +3,7 @@ from collections import deque
 class User:
     def __init__(self, name):
         self.name = name
-        self.friends = []
+        self.friends = set()
         self.friend_count = 0
 
 class SocialNetwork:
@@ -14,7 +14,11 @@ class SocialNetwork:
         self.users = {}
         self.friend_requests = deque()
 
+    def normalize_name(self, name):
+        return name.strip().lower()
+
     def add_user(self, name):
+        name = self.normalize_name(name)
         if len(self.users) >= self.MAX_USERS:
             print("Cannot add more users. Maximum limit reached.")
             return
@@ -28,8 +32,11 @@ class SocialNetwork:
         if user1.friend_count >= self.MAX_USERS or user2.friend_count >= self.MAX_USERS:
             print("Cannot add more connections for these users. Maximum limit reached.")
             return
-        user1.friends.append(user2)
-        user2.friends.append(user1)
+        if user2 in user1.friends:
+            print(f"{user1.name} and {user2.name} are already friends.")
+            return
+        user1.friends.add(user2)
+        user2.friends.add(user1)
         user1.friend_count += 1
         user2.friend_count += 1
         print(f"{user1.name} and {user2.name} are now friends!")
@@ -47,17 +54,18 @@ class SocialNetwork:
             user2.friend_count -= 1
 
     def search_user(self, name):
-        return self.users.get(name, None)
+        return self.users.get(self.normalize_name(name), None)
 
     def display_friends(self, user):
         if not user:
             print("User not found.")
             return
-        print(f"Friends of {user.name}: ", end="")
+        print(f"Friends of {user.name}:")
         if not user.friends:
             print("No friends yet.")
         else:
-            print(", ".join(friend.name for friend in user.friends))
+            for idx, friend in enumerate(user.friends, 1):
+                print(f"{idx}. {friend.name}")
 
     def display_all_users(self):
         if not self.users:
@@ -69,12 +77,12 @@ class SocialNetwork:
 
     def send_friend_request(self, sender, receiver):
         if len(self.friend_requests) >= self.MAX_FRIEND_REQUESTS:
-            print("Cannot send more friend requests. Maximum limit reached.")
-            return
+            print("Friend request queue full. Oldest request discarded.")
+            self.friend_requests.popleft()
         self.friend_requests.append((sender, receiver))
         print(f"Friend request sent from {sender.name} to {receiver.name}.")
 
-    def process_friend_requests(self):
+    def process_friend_requests(self, decision_callback):
         if not self.friend_requests:
             print("No pending friend requests.")
             return
@@ -82,8 +90,7 @@ class SocialNetwork:
         while self.friend_requests:
             sender, receiver = self.friend_requests.popleft()
             print(f"\n{receiver.name}, you have a friend request from {sender.name}.")
-            decision = input("Do you accept this friend request? (yes/no): ").strip().lower()
-
+            decision = decision_callback(sender, receiver)
             if decision == "yes":
                 self.add_connection(sender, receiver)
             elif decision == "no":
@@ -92,17 +99,21 @@ class SocialNetwork:
                 print("Invalid input. Friend request rejected by default.")
 
     def delete_user(self, name):
+        name = self.normalize_name(name)
         user = self.users.pop(name, None)
         if not user:
             print("User not found.")
             return
 
-        # Remove the user from all friends' lists
         for friend in user.friends:
             friend.friends.remove(user)
             friend.friend_count -= 1
 
         print(f"User {name} deleted from the social network.")
+
+def friend_request_decision(sender, receiver):
+    decision = input(f"Do you accept {sender.name}'s friend request? (yes/no): ").strip().lower()
+    return decision
 
 def main():
     print("===================================")
@@ -111,7 +122,6 @@ def main():
     network = SocialNetwork()
 
     while True:
-        print("\nOptions")
         print("\t[1] Add Multiple Users")
         print("\t[2] Send Friend Request")
         print("\t[3] Process Friend Requests")
@@ -145,7 +155,7 @@ def main():
                 print("Invalid sender or receiver.")
 
         elif user_input == "3":
-            network.process_friend_requests()
+            network.process_friend_requests(friend_request_decision)
 
         elif user_input == "4":
             search_name = input("Enter the name to search: ")
@@ -181,3 +191,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
